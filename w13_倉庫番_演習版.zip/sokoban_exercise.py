@@ -13,7 +13,6 @@
 # 画面の左上が (0, 0)。右へ行くと x が増え、下へ行くと y が増える。
 # WASD の差分：w=(0,-1), s=(0,1), a=(-1,0), d=(1,0)
 KEY_TO_VECTOR = {"w": (0, -1), "s": (0, 1), "a": (-1, 0), "d": (1, 0)}
-
 # # は壁、. はゴール、$ は箱、@ はプレイヤー。
 # * はゴール上の箱、+ はゴール上のプレイヤー。
 # 複数行文字列を splitlines() で行ごとのリストに変換する。
@@ -109,55 +108,54 @@ def next_position(origin, vector):
     """座標の足し算。引数：(x,y), (dx,dy)。戻り値：(x2,y2)。"""
     return (origin[0] + vector[0], origin[1] + vector[1])
 
-
 def can_enter(board, destination):
-    """TODO 2：壁判定。引数：board, 移動先座標。戻り値：移動可ならTrue。
-
-    まず TODO 1 では呼ばなくてもよい。
-    TODO 2 では、盤面内か、壁に含まれるかを確認しよう。
-    デモ版では walls という名前だが、演習版では solid に入っている。
-    """
-    # TODO 2: 条件を実装する（現状では壁も通過できる）
-    return in_field(board, destination)
-
+    # マップ内で、壁ではない場所なら移動できる
+    return (
+        in_field(board, destination)
+        and destination not in board["solid"]
+    )
 
 def push_crate(board, crate_position, vector):
-    """TODO 3：箱を押す。引数：board, 箱座標, 移動方向。戻り値：押せたらTrue。
+    destination = next_position(crate_position, vector)
 
-    箱の一つ先に別の箱や壁がある場合は押せない。
-    押せる場合は箱の集合を変更する。押せないときは変更しない。
-    デモ版の辞書キー boxes と、演習版の crates は異なる。
-    """
-    # TODO 3: 箱の行き先を調べ、移動可能なら crates を更新する
-    return False
+    # 箱の移動先が壁・マップ外なら押せない
+    if not can_enter(board, destination):
+        return False
 
+    # 箱の移動先に別の箱があれば押せない
+    if destination in board["crates"]:
+        return False
+
+    board["crates"].remove(crate_position)
+    board["crates"].add(destination)
+    return True
 
 def apply_move(board, direction_key):
-    """TODO 1〜3：プレイヤーの移動。引数：board, WASDの1文字。戻り値：成功ならTrue。
-
-    手順のヒント：
-       1. KEY_TO_VECTOR から差分を取り出す
-       2. next_position() で次の座標を計算する
-       3. TODO 1：盤面外なら動かさず、盤面内なら hero を更新する
-       4. TODO 2：壁チェックを追加する
-       5. TODO 3：次が箱なら push_crate() を使う
-
-    正しく動けるときだけ履歴に位置と箱集合のコピーを保存し、stepsを増やす。
-    """
     if direction_key not in KEY_TO_VECTOR:
         return False
-    vector = KEY_TO_VECTOR[direction_key]
-    # TODO 1：現在の座標を取得し、次の座標を計算する。
-    #           盤面内なら hero を更新する（最初は壁や箱を無視してよい）。
-    # TODO 2：TODO 1の判定に can_enter() を組み込む。
-    # TODO 3：次の位置が crates に含まれたら push_crate() を呼ぶ。
-    #           箱が動かなければプレイヤーも移動してはいけない。
-    # ヒント：移動が成功するときだけ次を実行する。
-    # board["past"].append((board["hero"], board["crates"].copy()))
-    # board["hero"] = 移動先の座標
-    # board["steps"] += 1
-    return False
 
+    vector = KEY_TO_VECTOR[direction_key]
+    destination = next_position(board["hero"], vector)
+
+    if not can_enter(board, destination):
+        return False
+
+    # 箱を動かす前の状態を保存しておく
+    previous_state = (
+        board["hero"],
+        board["crates"].copy()
+    )
+
+    # 移動先に箱がある場合
+    if destination in board["crates"]:
+        if not push_crate(board, destination, vector):
+            return False
+
+    # 移動に成功したときだけ履歴と歩数を更新
+    board["past"].append(previous_state)
+    board["hero"] = destination
+    board["steps"] += 1
+    return True
 
 def step_back(board):
     """Undoを実行。引数：board。戻り値：なし。"""
